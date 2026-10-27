@@ -14,20 +14,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Godot
+      - name: Download Godot 4.3
         run: |
-          brew install --cask godot
+          curl -L --fail \
+            https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_macos.universal.zip \
+            -o godot.zip
+          unzip -o godot.zip -d godot_app
+          GODOT_APP="$(find godot_app -name Godot.app -type d | head -n 1)"
+          test -n "$GODOT_APP"
+          echo "GODOT_BIN=$GODOT_APP/Contents/MacOS/Godot" >> "$GITHUB_ENV"
 
-      - name: Extract project
+      - name: Extract AimForge project
         run: |
           unzip -o AimForge.zip -d extracted
           test -f extracted/AimForge/project.godot
 
-      - name: Check Godot version
-        run: |
-          godot --version
-
-      - name: Prepare iOS export templates
+      - name: Download Godot 4.3 export templates
         run: |
           mkdir -p "$HOME/Library/Application Support/Godot/export_templates/4.3.stable"
           curl -L --fail \
@@ -35,10 +37,56 @@ jobs:
             -o templates.tpz
           mkdir -p templates
           unzip -o templates.tpz -d templates
-          find templates -name "*.ios.zip" -exec cp {} "$HOME/Library/Application Support/Godot/export_templates/4.3.stable/" \;
+          find templates -type f -name "*.ios.zip" -exec cp {} "$HOME/Library/Application Support/Godot/export_templates/4.3.stable/" \;
 
-      - name: Show project export configuration
+      - name: Generate iOS export preset
         run: |
-          cat extracted/AimForge/project.godot
-          echo "Checking whether an iOS export preset exists..."
-          test -f extracted/AimForge/export_presets.cfg && cat extracted/AimForge/export_presets.cfg || echo "No export_presets.cfg found yet."
+          cat > extracted/AimForge/export_presets.cfg <<'EOF'
+          [preset.0]
+
+          name="iOS"
+          platform="iOS"
+          runnable=false
+          dedicated_server=false
+          custom_features=""
+          export_filter="all_resources"
+          include_filter=""
+          exclude_filter=""
+          export_path="build/AimForge.xcodeproj"
+          encryption_include_filters=""
+          encryption_exclude_filters=""
+          encrypt_pck=false
+          encrypt_directory=false
+
+          [preset.0.options]
+
+          application/app_store_team_id=""
+          application/provisioning_profile_uuid_debug=""
+          application/provisioning_profile_uuid_release=""
+          application/code_sign_identity_debug=""
+          application/code_sign_identity_release=""
+          EOF
+
+      - name: Import project resources
+        run: |
+          "$GODOT_BIN" --headless --path extracted/AimForge --editor --import
+
+      - name: Export iOS Xcode project
+        run: |
+          mkdir -p extracted/AimForge/build
+          "$GODOT_BIN" --headless --path extracted/AimForge --export-debug "iOS" extracted/AimForge/build/AimForge.xcodeproj
+
+      - name: Package exported project
+        if: success()
+        run: |
+          cd extracted/AimForge/build
+          zip -r "$GITHUB_WORKSPACE/AimForge-iOS-Xcode.zip" .
+
+      - name: Upload exported Xcode project
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AimForge-iOS-Xcode
+          path: AimForge-iOS-Xcode.zip
+          if-no-files-found: error
+          retention-days: 7

@@ -67,7 +67,7 @@ jobs:
           export_filter="all_resources"
           include_filter=""
           exclude_filter=""
-          export_path="build/AimForge.xcodeproj"
+          export_path="build/AimForge-iOS.zip"
           encryption_include_filters=""
           encryption_exclude_filters=""
           encrypt_pck=false
@@ -76,7 +76,9 @@ jobs:
           [preset.0.options]
 
           application/app_store_team_id=""
+          application/bundle_identifier="com.hmk849.aimforge"
           application/provisioning_profile_uuid_debug=""
+          application/bundle_identifier="com.hmk849.aimforge"
           application/provisioning_profile_uuid_release=""
           application/code_sign_identity_debug=""
           application/code_sign_identity_release=""
@@ -89,7 +91,7 @@ jobs:
       - name: Export iOS Xcode project
         run: |
           mkdir -p extracted/AimForge/build
-          "$GODOT_BIN" --headless --path extracted/AimForge --export-debug "iOS" extracted/AimForge/build/AimForge.xcodeproj
+          "$GODOT_BIN" --headless --path extracted/AimForge --export-debug "iOS" extracted/AimForge/build/AimForge-iOS.zip
 
       - name: Package exported project
         if: success()

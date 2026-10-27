@@ -29,15 +29,30 @@ jobs:
           unzip -o AimForge.zip -d extracted
           test -f extracted/AimForge/project.godot
 
+      
       - name: Download Godot 4.3 export templates
         run: |
-          mkdir -p "$HOME/Library/Application Support/Godot/export_templates/4.3.stable"
+          TEMPLATE_DIR="$HOME/Library/Application Support/Godot/export_templates/4.3.stable"
+          mkdir -p "$TEMPLATE_DIR"
+
           curl -L --fail \
             https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz \
             -o templates.tpz
+
           mkdir -p templates
           unzip -o templates.tpz -d templates
-          find templates -type f -name "*.ios.zip" -exec cp {} "$HOME/Library/Application Support/Godot/export_templates/4.3.stable/" \;
+
+          IOS_TEMPLATE="$(find templates -type f -name "ios.zip" -print -quit)"
+          if [ -z "$IOS_TEMPLATE" ]; then
+            echo "ERROR: ios.zip not found in export template archive"
+            find templates -type f
+            exit 1
+          fi
+
+          cp "$IOS_TEMPLATE" "$TEMPLATE_DIR/ios.zip"
+          test -f "$TEMPLATE_DIR/ios.zip"
+          ls -lh "$TEMPLATE_DIR/ios.zip"
+
 
       - name: Generate iOS export preset
         run: |

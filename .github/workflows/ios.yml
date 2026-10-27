@@ -14,20 +14,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check project archive
+      - name: Set up Godot
         run: |
-          test -f AimForge.zip
-          unzip -l AimForge.zip
-          mkdir -p extracted
+          brew install --cask godot
+
+      - name: Extract project
+        run: |
           unzip -o AimForge.zip -d extracted
           test -f extracted/AimForge/project.godot
-          echo "AimForge project found."
 
-      - name: Upload project check result
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: AimForge-project-check
-          path: AimForge.zip
-          if-no-files-found: error
-          retention-days: 7
+      - name: Check Godot version
+        run: |
+          godot --version
+
+      - name: Prepare iOS export templates
+        run: |
+          mkdir -p "$HOME/Library/Application Support/Godot/export_templates/4.3.stable"
+          curl -L --fail \
+            https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz \
+            -o templates.tpz
+          mkdir -p templates
+          unzip -o templates.tpz -d templates
+          find templates -name "*.ios.zip" -exec cp {} "$HOME/Library/Application Support/Godot/export_templates/4.3.stable/" \;
+
+      - name: Show project export configuration
+        run: |
+          cat extracted/AimForge/project.godot
+          echo "Checking whether an iOS export preset exists..."
+          test -f extracted/AimForge/export_presets.cfg && cat extracted/AimForge/export_presets.cfg || echo "No export_presets.cfg found yet."

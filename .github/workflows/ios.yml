@@ -72,7 +72,7 @@ jobs:
          [preset.0.options]
          
          application/export_project_only=true
-         application/app_store_team_id=""
+         application/app_store_team_id="UNSIGNED"
          application/bundle_identifier="com.hmk849.aimforge"
          application/provisioning_profile_uuid_debug=""
          application/provisioning_profile_uuid_release=""

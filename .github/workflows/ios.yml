@@ -110,3 +110,37 @@ jobs:
           path: AimForge-iOS-Xcode.zip
           if-no-files-found: error
           retention-days: 7
+
+      - name: Build unsigned iOS app
+        run: |
+          PROJECT="$GITHUB_WORKSPACE/extracted/AimForge/build/AimForge-iOS.xcodeproj"
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "AimForge-iOS" \
+            -configuration Debug \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_IDENTITY="" \
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          APP_DIR="$GITHUB_WORKSPACE/DerivedData/Build/Products/Debug-iphoneos"
+          APP_PATH="$(find "$APP_DIR" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$APP_PATH"
+          mkdir -p "$GITHUB_WORKSPACE/ipa/Payload"
+          cp -R "$APP_PATH" "$GITHUB_WORKSPACE/ipa/Payload/"
+          cd "$GITHUB_WORKSPACE/ipa"
+          zip -r "$GITHUB_WORKSPACE/AimForge-unsigned.ipa" Payload
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: AimForge-unsigned-IPA
+          path: AimForge-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 7
+

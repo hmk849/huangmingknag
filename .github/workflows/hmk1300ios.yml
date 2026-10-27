@@ -1,0 +1,33 @@
+name: Build AimForge iOS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check project archive
+        run: |
+          test -f AimForge.zip
+          unzip -l AimForge.zip
+          mkdir -p extracted
+          unzip -o AimForge.zip -d extracted
+          test -f extracted/AimForge/project.godot
+          echo "AimForge project found."
+
+      - name: Upload project check result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AimForge-project-check
+          path: AimForge.zip
+          if-no-files-found: error
+          retention-days: 7

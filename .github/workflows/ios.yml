@@ -8,139 +8,140 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-14
+   runs-on: macos-14
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download Godot 4.3
-        run: |
-          curl -L --fail \
-            https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_macos.universal.zip \
-            -o godot.zip
-          unzip -o godot.zip -d godot_app
-          GODOT_APP="$(find godot_app -name Godot.app -type d | head -n 1)"
-          test -n "$GODOT_APP"
-          echo "GODOT_BIN=$GODOT_APP/Contents/MacOS/Godot" >> "$GITHUB_ENV"
-
-      - name: Extract AimForge project
-        run: |
-          unzip -o AimForge.zip -d extracted
-          test -f extracted/AimForge/project.godot
-
+   steps:
+     - name: Checkout repository
+       uses: actions/checkout@v4
+       
+     - name: Download Godot 4.3
+       run: |
+         set -e
+         curl -fL --retry 3 \
+           "https://downloads.godotengine.org/?flavor=stable&platform=macos.universal&slug=macos.universal.zip&version=4.3" \
+           -o godot.zip
+         unzip -o godot.zip -d godot_app
+         GODOT_APP="$(find godot_app -name Godot.app -type d -print -quit)"
+         test -n "$GODOT_APP"
+         echo "GODOT_BIN=$GODOT_APP/Contents/MacOS/Godot" >> "$GITHUB_ENV"
+         
+     - name: Extract AimForge project
+       run: |
+         set -e
+         unzip -o AimForge.zip -d extracted
+         test -f extracted/AimForge/project.godot
+        
+     - name: Download Godot 4.3 export templates
+       run: |
+         set -e
+         TEMPLATE_DIR="$HOME/Library/Application Support/Godot/export_templates/4.3.stable"
+         mkdir -p "$TEMPLATE_DIR"
+         curl -fL --retry 3 \
+           "https://downloads.godotengine.org/?flavor=stable&platform=templates&slug=export_templates.tpz&version=4.3" \
+           -o templates.tpz
+         mkdir -p templates
+         unzip -o templates.tpz -d templates
+         IOS_TEMPLATE="$(find templates -type f -name ios.zip -print -quit)"
+         if [ -z "$IOS_TEMPLATE" ]; then
+           echo "ERROR: ios.zip not found in export template archive"
+          find templates -type f
+         exit 1
+         fi
+         cp "$IOS_TEMPLATE" "$TEMPLATE_DIR/ios.zip"
+         test -f "$TEMPLATE_DIR/ios.zip"
       
-      - name: Download Godot 4.3 export templates
-        run: |
-          TEMPLATE_DIR="$HOME/Library/Application Support/Godot/export_templates/4.3.stable"
-          mkdir -p "$TEMPLATE_DIR"
-
-          curl -L --fail \
-            https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz \
-            -o templates.tpz
-
-          mkdir -p templates
-          unzip -o templates.tpz -d templates
-
-          IOS_TEMPLATE="$(find templates -type f -name "ios.zip" -print -quit)"
-          if [ -z "$IOS_TEMPLATE" ]; then
-            echo "ERROR: ios.zip not found in export template archive"
-            find templates -type f
-            exit 1
-          fi
-
-          cp "$IOS_TEMPLATE" "$TEMPLATE_DIR/ios.zip"
-          test -f "$TEMPLATE_DIR/ios.zip"
-          ls -lh "$TEMPLATE_DIR/ios.zip"
-
-
-      - name: Generate iOS export preset
-        run: |
-          cat > extracted/AimForge/export_presets.cfg <<'EOF'
-          [preset.0]
-
-          name="iOS"
-          platform="iOS"
-          runnable=false
-          dedicated_server=false
-          custom_features=""
-          export_filter="all_resources"
-          include_filter=""
-          exclude_filter=""
-          export_path="build/AimForge-iOS.zip"
-          encryption_include_filters=""
-          encryption_exclude_filters=""
-          encrypt_pck=false
-          encrypt_directory=false
-
-          [preset.0.options]
-          application/export_project_only=true
-
-          application/app_store_team_id="UNSIGNED"
-          application/bundle_identifier="com.hmk849.aimforge"
-          application/provisioning_profile_uuid_debug=""
-          application/bundle_identifier="com.hmk849.aimforge"
-          application/provisioning_profile_uuid_release=""
-          application/code_sign_identity_debug=""
-          application/code_sign_identity_release=""
-          EOF
-
-      - name: Import project resources
-        run: |
-          "$GODOT_BIN" --headless --path extracted/AimForge --editor --import
-
-      - name: Export iOS Xcode project
-        run: |
-          mkdir -p "$GITHUB_WORKSPACE/extracted/AimForge/build"
-          cd "$GITHUB_WORKSPACE"
-          "$GODOT_BIN" --headless --path "$GITHUB_WORKSPACE/extracted/AimForge" --export-debug "iOS" "$GITHUB_WORKSPACE/extracted/AimForge/build/AimForge-iOS.zip"
-          test -d "$GITHUB_WORKSPACE/extracted/AimForge/build/AimForge-iOS.xcodeproj"
-
-      - name: Package exported project
-        if: success()
-        run: |
-          cd extracted/AimForge/build
-          zip -r "$GITHUB_WORKSPACE/AimForge-iOS-Xcode.zip" .
-
-      - name: Upload exported Xcode project
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: AimForge-iOS-Xcode
-          path: AimForge-iOS-Xcode.zip
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Build unsigned iOS app
-        run: |
-          PROJECT="$GITHUB_WORKSPACE/extracted/AimForge/build/AimForge-iOS.xcodeproj"
-          xcodebuild \
-            -project "$PROJECT" \
-            -scheme "AimForge-iOS" \
-            -configuration Debug \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_IDENTITY="" \
-            build
-
-      - name: Package unsigned IPA
-        run: |
-          APP_DIR="$GITHUB_WORKSPACE/DerivedData/Build/Products/Debug-iphoneos"
-          APP_PATH="$(find "$APP_DIR" -maxdepth 1 -type d -name '*.app' -print -quit)"
-          test -n "$APP_PATH"
-          mkdir -p "$GITHUB_WORKSPACE/ipa/Payload"
-          cp -R "$APP_PATH" "$GITHUB_WORKSPACE/ipa/Payload/"
-          cd "$GITHUB_WORKSPACE/ipa"
-          zip -r "$GITHUB_WORKSPACE/AimForge-unsigned.ipa" Payload
-
-      - name: Upload unsigned IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: AimForge-unsigned-IPA
-          path: AimForge-unsigned.ipa
-          if-no-files-found: error
-          retention-days: 7
-
+     - name: Generate iOS export preset
+       run: |
+         set -e
+         cat > extracted/AimForge/export_presets.cfg <<'EOF'
+         [preset.0]
+         name="iOS"
+         platform="iOS"
+         runnable=false
+         dedicated_server=false
+         custom_features=""
+         export_filter="all_resources"
+         include_filter=""
+         exclude_filter=""
+         export_path="build/AimForge-iOS.zip"
+         encryption_include_filters=""
+         encryption_exclude_filters=""
+         encrypt_pck=false
+         encrypt_directory=false
+         
+         [preset.0.options]
+         
+         application/export_project_only=true
+         application/app_store_team_id=""
+         application/bundle_identifier="com.hmk849.aimforge"
+         application/provisioning_profile_uuid_debug=""
+         application/provisioning_profile_uuid_release=""
+         application/code_sign_identity_debug=""
+         application/code_sign_identity_release=""
+         EOF
+     - name: Import project resources
+       run: |
+         set -e
+         "$GODOT_BIN" --headless --path "$GITHUB_WORKSPACE/extracted/AimForge" --editor --import
+         
+     - name: Export iOS Xcode project
+       run: |
+        set -e
+        PROJECT_DIR="$GITHUB_WORKSPACE/extracted/AimForge"
+        BUILD_DIR="$PROJECT_DIR/build"
+        mkdir -p "$BUILD_DIR"
+        "$GODOT_BIN" --headless --path "$PROJECT_DIR" --export-debug "iOS" "$BUILD_DIR/AimForge-iOS.zip"
+        test -d "$BUILD_DIR/AimForge-iOS.xcodeproj"
+        
+     - name: Package exported project
+       run: |
+         set -e
+         cd "$GITHUB_WORKSPACE/extracted/AimForge/build"
+         zip -r "$GITHUB_WORKSPACE/AimForge-iOS-Xcode.zip" .
+         
+     - name: Upload exported Xcode project
+       uses: actions/upload-artifact@v4
+       with:
+         name: AimForge-iOS-Xcode
+         path: AimForge-iOS-Xcode.zip
+         if-no-files-found: error
+         retention-days: 7
+         
+     - name: Build unsigned iOS app
+       run: |
+         set -e
+         PROJECT="$GITHUB_WORKSPACE/extracted/AimForge/build/AimForge-iOS.xcodeproj"
+         xcodebuild \
+           -project "$PROJECT" \
+           -scheme "AimForge-iOS" \
+           -configuration Debug \
+           -sdk iphoneos \
+           -destination 'generic/platform=iOS' \
+           -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
+           CODE_SIGNING_ALLOWED=NO \
+           CODE_SIGNING_REQUIRED=NO \
+           CODE_SIGNING_IDENTITY="" \
+           build
+           
+     - name: Package unsigned IPA
+       run: |
+         set -e
+         APP_DIR="$GITHUB_WORKSPACE/DerivedData/Build/Products/Debug-iphoneos"
+         APP_PATH="$(find "$APP_DIR" -maxdepth 1 -type d -name '*.app' -print -quit)"
+         if [ -z "$APP_PATH" ]; then
+           echo "ERROR: Built app not found"
+           find "$GITHUB_WORKSPACE/DerivedData/Build/Products" -maxdepth 4 -print || true
+           exit 1
+         fi
+         mkdir -p "$GITHUB_WORKSPACE/ipa/Payload"
+         cp -R "$APP_PATH" "$GITHUB_WORKSPACE/ipa/Payload/"
+         cd "$GITHUB_WORKSPACE/ipa"
+         zip -r "$GITHUB_WORKSPACE/AimForge-unsigned.ipa" Payload
+         
+     - name: Upload unsigned IPA
+       uses: actions/upload-artifact@v4
+       with:
+         name: AimForge-unsigned-IPA
+         path: AimForge-unsigned.ipa
+         if-no-files-found: error
+         retention-days: 7

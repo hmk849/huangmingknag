@@ -90,8 +90,10 @@ jobs:
 
       - name: Export iOS Xcode project
         run: |
-          mkdir -p extracted/AimForge/build
-          "$GODOT_BIN" --headless --path extracted/AimForge --export-debug "iOS" extracted/AimForge/build/AimForge-iOS.zip
+          mkdir -p "$GITHUB_WORKSPACE/extracted/AimForge/build"
+          cd "$GITHUB_WORKSPACE"
+          "$GODOT_BIN" --headless --path "$GITHUB_WORKSPACE/extracted/AimForge" --export-debug "iOS" "$GITHUB_WORKSPACE/extracted/AimForge/build/AimForge-iOS.zip"
+          test -f "$GITHUB_WORKSPACE/extracted/AimForge/build/AimForge-iOS.zip"
 
       - name: Package exported project
         if: success()
